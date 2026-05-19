@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>🌙 夕食メモ</title>
+  <style>
+    :root {
+      --primary: #5c6bc0;
+      --primary-light: #e8eaf6;
+      --primary-dark: #3949ab;
+      --accent: #43a047;
+      --accent-light: #e8f5e9;
+      --warn: #ef5350;
+      --bg: #f5f6fa;
+      --card: #ffffff;
+      --text: #222;
+      --text-muted: #888;
+      --border: #e0e0e8;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: 'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ===== HEADER ===== */
+    header {
+      background: var(--primary); color: white; padding: 14px 18px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+      box-shadow: 0 2px 8px rgba(63,81,181,0.3);
+    }
+    .header-title { font-size: 18px; font-weight: 700; }
+    .sync-badge {
+      font-size: 12px; padding: 4px 10px; border-radius: 20px;
+      font-weight: 600; display: flex; align-items: center; gap: 5px;
+    }
+    .sync-badge.ok      { background: rgba(255,255,255,0.25); }
+    .sync-badge.syncing { background: rgba(255,255,255,0.15); opacity: 0.85; }
+    .sync-badge.error   { background: #ef5350; }
+    .sync-badge.offline { background: rgba(0,0,0,0.2); opacity: 0.8; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { display: inline-block; animation: spin 1s linear infinite; }
+
+    /* ===== NAV ===== */
+    .nav-tabs { display: flex; background: white; border-bottom: 2px solid var(--border); }
+    .nav-tab {
+      flex: 1; padding: 14px 6px; text-align: center;
+      font-size: 13px; font-weight: 600; color: var(--text-muted);
+      cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    /* ===== SETUP ===== */
+    #setup-screen { max-width: 480px; margin: 0 auto; padding: 20px 16px; }
+    .setup-card {
+      background: var(--card); border-radius: 20px; padding: 26px 22px;
+      box-shadow: var(--shadow); margin-bottom: 14px;
+    }
+    .setup-card h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .setup-intro { font-size: 13px; color: var(--text-muted); line-height: 1.7; margin-bottom: 18px; }
+    .step { display: flex; gap: 12px; margin-bottom: 18px; align-items: flex-start; }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--primary);
+      color: white; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+    }
+    .step-body { flex: 1; }
+    .step-body strong { font-size: 14px; display: block; margin-bottom: 4px; }
+    .step-body p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+    .step-body code {
+      background: var(--bg); padding: 2px 6px; border-radius: 5px;
+      font-size: 11px; color: var(--primary-dark);
+    }
+    .open-link {
+      display: inline-block; margin-top: 8px; padding: 8px 16px;
+      background: #24292f; color: white; border-radius: 8px;
+      font-size: 13px; font-weight: 600; text-decoration: none;
+    }
+    .setup-sep { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+    .setup-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; display: block; }
+    .setup-input {
+      width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+      border-radius: 12px; font-size: 14px; font-family: monospace; outline: none;
+      transition: border-color 0.2s; margin-bottom: 10px;
+    }
+    .setup-input:focus { border-color: var(--primary); }
+    .mode-toggle { display: flex; gap: 8px; margin-bottom: 14px; }
+    .mode-btn {
+      flex: 1; padding: 11px 8px; border: 2px solid var(--border);
+      border-radius: 12px; text-align: center; cursor: pointer;
+      font-size: 12px; font-weight: 600; color: var(--text-muted); transition: all 0.2s;
+    }
+    .mode-btn.active { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+    .gist-id-row { display: none; }
+    .setup-btn {
+      width: 100%; padding: 14px; background: var(--primary); color: white;
+      border: none; border-radius: 14px; font-size: 16px; font-weight: 700;
+      cursor: pointer; font-family: inherit; transition: background 0.2s;
+    }
+    .setup-btn:hover { background: var(--primary-dark); }
+    .setup-btn:disabled { background: #bbb; cursor: not-allowed; }
+    .setup-error {
+      background: #fdecea; color: var(--warn); border-radius: 10px;
+      padding: 10px 14px; font-size: 13px; margin-top: 10px; display: none; line-height: 1.5;
+    }
+
+    /* ===== MAIN ===== */
+    .container { max-width: 600px; margin: 0 auto; padding: 20px 14px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* 記録 */
+    .date-nav {
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px; margin-bottom: 20px;
+    }
+    .date-nav button {
+      width: 42px; height: 42px; border: none; background: var(--card);
+      border-radius: 50%; cursor: pointer; font-size: 22px;
+      box-shadow: var(--shadow); display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .date-nav button:active { background: var(--primary); color: white; }
+    .date-label { font-size: 17px; font-weight: 700; min-width: 170px; text-align: center; }
+    .record-card { background: var(--card); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); }
+    .record-head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .record-head .icon { font-size: 36px; }
+    .record-head .title { font-size: 18px; font-weight: 700; }
+    .record-head .sub { font-size: 12px; color: var(--text-muted); }
+    .dish-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; min-height: 40px; }
+    .dish-tag {
+      background: var(--primary-light); color: var(--primary-dark);
+      padding: 8px 14px; border-radius: 22px; font-size: 14px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .dish-rm { cursor: pointer; font-size: 15px; opacity: 0.45; }
+    .dish-rm:hover { opacity: 1; }
+    .no-dish { font-size: 13px; color: var(--text-muted); font-style: italic; align-self: center; }
+    .add-row { display: flex; gap: 8px; }
+    .add-row input {
+      flex: 1; padding: 12px 14px; border: 1.5px solid var(--border);
+      border-radius: 12px; font-size: 15px; font-family: inherit; outline: none;
+      transition: border-color 0.2s;
+    }
+    .add-row input:focus { border-color: var(--primary); }
+    .add-row button {
+      padding: 12px 20px; background: var(--primary); color: white; border: none;
+      border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer;
+      font-family: inherit; transition: background 0.15s;
+    }
+    .add-row button:active { background: var(--primary-dark); }
+
+    /* 提案 */
+    .suggest-hero {
+      background: linear-gradient(135deg, var(--primary-light), #fafafa);
+      border-radius: 18px; padding: 26px 22px; margin-bottom: 20px; text-align: center;
+    }
+    .suggest-hero h2 { font-size: 18px; margin-bottom: 6px; }
+    .suggest-hero p { font-size: 13px; color: var(--text-muted); margin-bottom: 18px; line-height: 1.6; }
+    .suggest-big-btn {
+      padding: 14px 36px; background: var(--primary); color: white; border: none;
+      border-radius: 30px; font-size: 16px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(92,107,192,0.35); font-family: inherit; transition: all 0.2s;
+    }
+    .suggest-big-btn:active { transform: scale(0.97); }
+    .sug-card {
+      background: var(--card); border-radius: 16px; padding: 20px;
+      box-shadow: var(--shadow); border-left: 4px solid var(--primary);
+      animation: fadeIn 0.3s ease; margin-bottom: 12px;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .sug-num { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+    .sug-dishes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .sug-dish {
+      background: var(--primary-light); color: var(--primary-dark);
+      padding: 7px 16px; border-radius: 22px; font-size: 14px; font-weight: 600;
+    }
+    .sug-reason {
+      font-size: 12px; color: var(--text-muted); background: var(--bg);
+      padding: 8px 12px; border-radius: 8px; line-height: 1.6;
+    }
+    .adopt-btn {
+      margin-top: 12px; padding: 10px 20px; background: var(--accent-light);
+      color: var(--accent); border: 1.5px solid var(--accent); border-radius: 10px;
+      font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.2s;
+    }
+    .adopt-btn:active { background: var(--accent); color: white; }
+
+    /* 履歴 */
+    .history-day {
+      background: var(--card); border-radius: 14px; padding: 18px;
+      box-shadow: var(--shadow); margin-bottom: 12px;
+    }
+    .history-date {
+      font-weight: 700; font-size: 14px; color: var(--primary);
+      border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 10px;
+    }
+    .history-dishes { display: flex; flex-wrap: wrap; gap: 6px; }
+    .history-dish {
+      background: var(--bg); border: 1px solid var(--border);
+      padding: 4px 12px; border-radius: 14px; font-size: 13px;
+    }
+    .history-empty { text-align: center; padding: 48px 24px; color: var(--text-muted); }
+    .history-empty .ei { font-size: 48px; margin-bottom: 12px; }
+
+    /* 設定 */
+    .settings-panel { max-width: 480px; margin: 0 auto; padding: 20px 16px; }
+    .settings-card {
+      background: var(--card); border-radius: 18px; padding: 22px;
+      box-shadow: var(--shadow); margin-bottom: 14px;
+    }
+    .settings-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
+    .code-box {
+      background: var(--bg); border-radius: 10px; padding: 12px 14px;
+      font-family: monospace; font-size: 13px; word-break: break-all;
+      color: var(--primary-dark); line-height: 1.5; margin-bottom: 10px;
+    }
+    .copy-btn {
+      padding: 8px 18px; background: var(--primary); color: white;
+      border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    .reset-btn {
+      padding: 10px 20px; background: #fdecea; color: var(--warn);
+      border: 1.5px solid var(--warn); border-radius: 10px;
+      font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .settings-note { font-size: 12px; color: var(--text-muted); line-height: 1.7; margin-bottom: 12px; }
+
+    /* Toast */
+    .toast {
+      position: fixed; bottom: 24px; left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #333; color: white; padding: 12px 24px;
+      border-radius: 25px; font-size: 14px; font-weight: 600;
+      transition: transform 0.3s; z-index: 999; pointer-events: none; white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-title">🌙 夕食メモ</div>
+  <div class="sync-badge offline" id="syncBadge">⏳ 準備中</div>
+</header>
+
+<div class="nav-tabs" id="navTabs" style="display:none">
+  <div class="nav-tab active" onclick="switchTab('record')">📝 記録</div>
+  <div class="nav-tab" onclick="switchTab('suggest')">✨ 提案</div>
+  <div class="nav-tab" onclick="switchTab('history')">📅 履歴</div>
+  <div class="nav-tab" onclick="switchTab('settings')">⚙️ 設定</div>
+</div>
+
+<!-- ===== SETUP ===== -->
+<div id="setup-screen">
+  <br>
+  <div class="setup-card">
+    <h2>🌙 夕食メモへようこそ</h2>
+    <p class="setup-intro">GitHubのGist（無料）にデータを保存します。スマホや別のPCからも同じデータを見られます。GitHubアカウントがあればすぐ使えます。</p>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        <strong>GitHubでトークンを発行</strong>
+        <p>GitHub にログイン → 右上のアイコン → <code>Settings</code> → 左下の <code>Developer settings</code> → <code>Personal access tokens</code> → <code>Tokens (classic)</code> → <code>Generate new token (classic)</code></p>
+        <p style="margin-top:6px">名前は何でもOK。<strong>Expiration: No expiration</strong>を選択し、<strong>gist</strong> にチェックを入れて Generate。</p>
+        <a class="open-link" href="https://github.com/settings/tokens/new?scopes=gist&description=%E5%A4%95%E9%A3%9F%E3%83%A1%E3%83%A2" target="_blank">🔗 トークン発行ページを開く</a>
+      </div>
+    </div>
+
+    <hr class="setup-sep">
+
+    <label class="setup-label">GitHubトークンを貼り付け</label>
+    <input class="setup-input" id="tokenInput" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
+
+    <label class="setup-label">このデバイスは？</label>
+    <div class="mode-toggle">
+      <div class="mode-btn active" id="mode-new"      onclick="setMode('new')">📱 初回（新規作成）</div>
+      <div class="mode-btn"        id="mode-existing" onclick="setMode('existing')">🔗 2台目以降（既存に接続）</div>
+    </div>
+
+    <div class="gist-id-row" id="gistIdRow">
+      <label class="setup-label">Gist ID（最初の端末の「設定」タブに表示）</label>
+      <input class="setup-input" id="gistIdInput" placeholder="32文字のID…">
+    </div>
+
+    <div class="setup-error" id="setupError"></div>
+    <button class="setup-btn" id="setupBtn" onclick="doSetup()">接続する →</button>
+  </div>
+</div>
+
+<!-- ===== MAIN APP ===== -->
+<div id="main-app" style="display:none">
+
+  <!-- 記録 -->
+  <div id="tab-record" class="tab-content active">
+    <div class="container">
+      <div class="date-nav">
+        <button onclick="changeDay(-1)">‹</button>
+        <div class="date-label" id="dateLabel"></div>
+        <button onclick="changeDay(1)">›</button>
+      </div>
+      <div class="record-card">
+        <div class="record-head">
+          <div class="icon">🌙</div>
+          <div><div class="title">夕食</div><div class="sub">夜ごはんを記録</div></div>
+        </div>
+        <div class="dish-list" id="dishList"></div>
+        <div class="add-row">
+          <input type="text" id="dishInput" placeholder="料理名を入力…" onkeydown="if(event.key==='Enter')doAdd()">
+          <button onclick="doAdd()">追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提案 -->
+  <div id="tab-suggest" class="tab-content">
+    <div class="container">
+      <div class="suggest-hero">
+        <h2>✨ 今日の夕食を提案</h2>
+        <p>最近の記録をもとにバランスよく提案します。<br>記録が増えるほど精度が上がります。</p>
+        <button class="suggest-big-btn" onclick="generateSuggestions()">提案を見る</button>
+      </div>
+      <div id="sugGrid"></div>
+    </div>
+  </div>
+
+  <!-- 履歴 -->
+  <div id="tab-history" class="tab-content">
+    <div class="container" id="histContainer"></div>
+  </div>
+
+  <!-- 設定 -->
+  <div id="tab-settings" class="tab-content">
+    <div class="settings-panel">
+      <div class="settings-card">
+        <h3>🔗 Gist ID（連携コード）</h3>
+        <p class="settings-note">2台目のスマホやPCで使いたいときは、このIDをセットアップ画面に入力してください。</p>
+        <div class="code-box" id="gistIdDisplay">—</div>
+        <button class="copy-btn" onclick="copyGistId()">コピー</button>
+      </div>
+      <div class="settings-card">
+        <h3>🔄 データを再読み込み</h3>
+        <p class="settings-note">他の端末で記録した内容を手動で反映したいときに使います。</p>
+        <button class="copy-btn" onclick="manualReload()">再読み込み</button>
+      </div>
+      <div class="settings-card">
+        <h3>⚠️ 設定をリセット</h3>
+        <p class="settings-note">このデバイスの設定をクリアして初期設定画面に戻ります。Gistのデータは消えません。</p>
+        <button class="reset-btn" onclick="resetSettings()">設定をリセット</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────
+//  CONFIG  (localStorage: only token + gistId)
+// ─────────────────────────────────────────────
+const CFG_KEY = 'yushoku_cfg_v2';
+function getCfg()      { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
+function saveCfg(cfg)  { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+
+// ─────────────────────────────────────────────
+//  GITHUB GIST API
+// ─────────────────────────────────────────────
+const GH   = 'https://api.github.com';
+const FILE = 'yushoku_dinner.json';
+
+function ghHeaders(token) {
+  return {
+    'Authorization': 'Bearer ' + token,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'Content-Type': 'application/json',
+  };
+}
+
+async function gistCreate(token) {
+  const res = await fetch(`${GH}/gists`, {
+    method: 'POST',
+    headers: ghHeaders(token),
+    body: JSON.stringify({
+      description: '夕食メモ',
+      public: false,
+      files: { [FILE]: { content: JSON.stringify({ history: {} }) } },
+    }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error((j.message || res.status) + ' — トークンとgistスコープを確認してください');
+  }
+  const j = await res.json();
+  return j.id;
+}
+
+async function gistLoad(token, gistId) {
+  const res = await fetch(`${GH}/gists/${gistId}`, { headers: ghHeaders(token) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.message || '読み込み失敗 ' + res.status);
+  }
+  const j   = await res.json();
+  const raw = j.files?.[FILE]?.content;
+  if (!raw) throw new Error('データファイルが見つかりません');
+  return JSON.parse(raw);
+}
+
+async function gistSave(token, gistId, data) {
+  const res = await fetch(`${GH}/gists/${gistId}`, {
+    method: 'PATCH',
+    headers: ghHeaders(token),
+    body: JSON.stringify({ files: { [FILE]: { content: JSON.stringify(data) } } }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.message || '保存失敗 ' + res.status);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  APP STATE
+// ─────────────────────────────────────────────
+let appData   = { history: {} };
+let saveTimer = null;
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(pushSave, 1200);
+}
+
+async function pushSave() {
+  const cfg = getCfg();
+  setSyncBadge('syncing');
+  try {
+    await gistSave(cfg.token, cfg.gistId, appData);
+    setSyncBadge('ok');
+  } catch (e) {
+    setSyncBadge('error');
+    showToast('⚠ 保存できませんでした: ' + e.message);
+  }
+}
+
+async function pullLoad() {
+  const cfg = getCfg();
+  setSyncBadge('syncing');
+  try {
+    appData = await gistLoad(cfg.token, cfg.gistId);
+    if (!appData.history) appData.history = {};
+    setSyncBadge('ok');
+  } catch (e) {
+    setSyncBadge('error');
+    showToast('⚠ 読み込みエラー: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SYNC BADGE
+// ─────────────────────────────────────────────
+function setSyncBadge(state) {
+  const b = document.getElementById('syncBadge');
+  b.className = 'sync-badge ' + state;
+  const map = {
+    ok:      '✓ 同期済み',
+    syncing: '<span class="spinner">↻</span> 同期中…',
+    error:   '⚠ エラー',
+    offline: '⏳ 準備中',
+  };
+  b.innerHTML = map[state] || '';
+}
+
+// ─────────────────────────────────────────────
+//  SETUP
+// ─────────────────────────────────────────────
+let setupMode = 'new';
+
+function setMode(m) {
+  setupMode = m;
+  document.getElementById('mode-new').classList.toggle('active', m === 'new');
+  document.getElementById('mode-existing').classList.toggle('active', m === 'existing');
+  document.getElementById('gistIdRow').style.display = m === 'existing' ? 'block' : 'none';
+}
+
+async function doSetup() {
+  const token  = document.getElementById('tokenInput').value.trim();
+  const gistIn = document.getElementById('gistIdInput').value.trim();
+  const errEl  = document.getElementById('setupError');
+  const btn    = document.getElementById('setupBtn');
+
+  errEl.style.display = 'none';
+  if (!token) { showSetupError('GitHubトークンを入力してください'); return; }
+  if (setupMode === 'existing' && !gistIn) { showSetupError('Gist IDを入力してください'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '接続中…';
+
+  try {
+    let gistId;
+    if (setupMode === 'new') {
+      gistId = await gistCreate(token);
+    } else {
+      gistId = gistIn;
+      await gistLoad(token, gistId); // verify
+    }
+    saveCfg({ token, gistId });
+    startApp();
+  } catch (e) {
+    showSetupError('接続できませんでした:\n' + e.message);
+    btn.disabled = false;
+    btn.textContent = '接続する →';
+  }
+}
+
+function showSetupError(msg) {
+  const el = document.getElementById('setupError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+// ─────────────────────────────────────────────
+//  START
+// ─────────────────────────────────────────────
+async function startApp() {
+  document.getElementById('setup-screen').style.display = 'none';
+  document.getElementById('main-app').style.display    = 'block';
+  document.getElementById('navTabs').style.display     = 'flex';
+  document.getElementById('gistIdDisplay').textContent = getCfg().gistId || '—';
+  await pullLoad();
+  renderRecord();
+}
+
+// ─────────────────────────────────────────────
+//  TABS
+// ─────────────────────────────────────────────
+function switchTab(name) {
+  const tabNames = ['record','suggest','history','settings'];
+  document.querySelectorAll('.nav-tab').forEach((t, i) =>
+    t.classList.toggle('active', tabNames[i] === name));
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'history') renderHistory();
+}
+
+// ─────────────────────────────────────────────
+//  RECORD
+// ─────────────────────────────────────────────
+let currentDate = new Date();
+currentDate.setHours(0,0,0,0);
+
+function dateKey(d) { return d.toISOString().split('T')[0]; }
+
+function formatDate(d) {
+  const dows = ['日','月','火','水','木','金','土'];
+  const m = d.getMonth()+1, day = d.getDate(), dow = dows[d.getDay()];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff  = Math.round((d - today) / 86400000);
+  const mark  = diff === 0 ? ' 今日' : diff === -1 ? ' 昨日' : diff === 1 ? ' 明日' : '';
+  return `${m}月${day}日（${dow}）${mark}`;
+}
+
+function changeDay(delta) {
+  currentDate.setDate(currentDate.getDate() + delta);
+  renderRecord();
+}
+
+function renderRecord() {
+  document.getElementById('dateLabel').textContent = formatDate(currentDate);
+  const key    = dateKey(currentDate);
+  const dishes = appData.history[key] || [];
+  const list   = document.getElementById('dishList');
+  list.innerHTML = dishes.length === 0
+    ? '<div class="no-dish">まだ記録がありません</div>'
+    : dishes.map(d => `
+        <div class="dish-tag">
+          ${esc(d)}
+          <span class="dish-rm" onclick="removeDish('${key}','${esc(d)}')">×</span>
+        </div>`).join('');
+}
+
+function doAdd() {
+  const inp = document.getElementById('dishInput');
+  const val = inp.value.trim();
+  if (!val) return;
+  const key = dateKey(currentDate);
+  if (!appData.history[key]) appData.history[key] = [];
+  if (!appData.history[key].includes(val)) appData.history[key].push(val);
+  inp.value = '';
+  renderRecord();
+  scheduleSave();
+  showToast(`「${val}」を追加 ✅`);
+}
+
+function removeDish(key, dish) {
+  if (!appData.history[key]) return;
+  appData.history[key] = appData.history[key].filter(d => d !== dish);
+  if (!appData.history[key].length) delete appData.history[key];
+  renderRecord();
+  scheduleSave();
+}
+
+// ─────────────────────────────────────────────
+//  SUGGEST
+// ─────────────────────────────────────────────
+const DB = [
+  { name: '唐揚げ',          cat: 'chicken', tags: ['揚げ物','鶏肉'] },
+  { name: '生姜焼き',        cat: 'pork',    tags: ['豚肉','炒め'] },
+  { name: '肉じゃが',        cat: 'beef',    tags: ['牛肉','煮物','野菜'] },
+  { name: '刺身',            cat: 'seafood', tags: ['魚介'] },
+  { name: '焼き魚',          cat: 'fish',    tags: ['魚','焼き'] },
+  { name: '煮魚',            cat: 'fish',    tags: ['魚','煮物'] },
+  { name: '餃子',            cat: 'pork',    tags: ['豚肉','野菜'] },
+  { name: 'ステーキ',        cat: 'beef',    tags: ['牛肉','焼き'] },
+  { name: 'ハンバーグ',      cat: 'beef',    tags: ['牛肉','豚肉'] },
+  { name: '野菜炒め',        cat: 'veg',     tags: ['野菜','炒め'] },
+  { name: 'シチュー',        cat: 'mixed',   tags: ['乳製品','野菜','煮物'] },
+  { name: 'おでん',          cat: 'mixed',   tags: ['魚介','野菜'] },
+  { name: 'すき焼き',        cat: 'beef',    tags: ['牛肉','野菜','鍋'] },
+  { name: '麻婆豆腐',        cat: 'pork',    tags: ['豚肉','豆腐'] },
+  { name: 'グラタン',        cat: 'mixed',   tags: ['乳製品'] },
+  { name: '天ぷら',          cat: 'seafood', tags: ['魚介','野菜','揚げ物'] },
+  { name: 'しゃぶしゃぶ',    cat: 'mixed',   tags: ['牛肉','野菜','鍋'] },
+  { name: 'カレーライス',    cat: 'mixed',   tags: ['スパイス'] },
+  { name: 'ポトフ',          cat: 'veg',     tags: ['野菜','スープ'] },
+  { name: 'チキンソテー',    cat: 'chicken', tags: ['鶏肉','焼き'] },
+  { name: '豚汁定食',        cat: 'pork',    tags: ['豚肉','野菜'] },
+  { name: 'サーモン塩焼き',  cat: 'fish',    tags: ['魚','焼き'] },
+  { name: 'エビチリ',        cat: 'seafood', tags: ['魚介'] },
+  { name: '回鍋肉',          cat: 'pork',    tags: ['豚肉','野菜','炒め'] },
+  { name: 'オムライス',      cat: 'chicken', tags: ['鶏肉','卵'] },
+  { name: '豆腐ステーキ',    cat: 'veg',     tags: ['豆腐','野菜'] },
+  { name: '鮭のムニエル',    cat: 'fish',    tags: ['魚','洋食'] },
+  { name: 'チーズタッカルビ',cat: 'chicken', tags: ['鶏肉','乳製品'] },
+  { name: '豚の角煮',        cat: 'pork',    tags: ['豚肉','煮物'] },
+  { name: 'ブリの照り焼き',  cat: 'fish',    tags: ['魚','焼き'] },
+];
+const SIDES = ['白ご飯','味噌汁','サラダ','漬物','お浸し','冷奴','きんぴらごぼう','卵焼き','ほうれん草おひたし','豆腐の味噌汁'];
+
+function recentSet(days = 7) {
+  const s = new Set(), now = new Date(); now.setHours(0,0,0,0);
+  for (let i = 1; i <= days; i++) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    (appData.history[dateKey(d)] || []).forEach(x => s.add(x));
+  }
+  return s;
+}
+
+function recentCats(days = 7) {
+  const c = {}, now = new Date(); now.setHours(0,0,0,0);
+  for (let i = 1; i <= days; i++) {
+    const d = new Date(now); d.setDate(d.getDate() - i);
+    (appData.history[dateKey(d)] || []).forEach(dish => {
+      const f = DB.find(m => m.name === dish);
+      if (f) c[f.cat] = (c[f.cat] || 0) + 1;
+    });
+  }
+  return c;
+}
+
+function generateSuggestions() {
+  const grid  = document.getElementById('sugGrid');
+  const rDish = recentSet(7);
+  const rCats = recentCats(7);
+  const today = dateKey(new Date());
+
+  const scored = DB.map(item => ({
+    ...item,
+    score: Math.random() * 3
+      - (rDish.has(item.name) ? 5 : 0)
+      - (rCats[item.cat] || 0) * 0.9,
+  })).sort((a, b) => b.score - a.score);
+
+  const usedSides = new Set();
+  grid.innerHTML  = '';
+
+  scored.slice(0, 3).forEach((main, idx) => {
+    const side  = SIDES.find(s => !rDish.has(s) && !usedSides.has(s)) || SIDES[idx % SIDES.length];
+    usedSides.add(side);
+    const dishes = [main.name, side];
+
+    let reason = '';
+    if (!(rCats[main.cat] > 0)) reason += `最近${catJa(main.cat)}が少なめです。`;
+    if (main.tags.includes('野菜'))  reason += '野菜でビタミン補給。';
+    if (main.tags.includes('魚') || main.tags.includes('魚介')) reason += '魚介でDHA補給。';
+    if (!reason) reason = 'バランスの良い組み合わせです。';
+
+    const card = document.createElement('div');
+    card.className = 'sug-card';
+    card.innerHTML = `
+      <div class="sug-num">提案 ${idx + 1}</div>
+      <div class="sug-dishes">${dishes.map(d => `<div class="sug-dish">${esc(d)}</div>`).join('')}</div>
+      <div class="sug-reason">💡 ${reason}</div>
+      <button class="adopt-btn" onclick='adoptSug("${today}",${JSON.stringify(dishes)})'>✅ 今日の夕食に採用</button>`;
+    grid.appendChild(card);
+  });
+}
+
+function catJa(c) {
+  return { chicken:'鶏肉', pork:'豚肉', beef:'牛肉', fish:'魚', seafood:'魚介', veg:'野菜', mixed:'' }[c] || '';
+}
+
+function adoptSug(key, dishes) {
+  if (!appData.history[key]) appData.history[key] = [];
+  dishes.forEach(d => { if (!appData.history[key].includes(d)) appData.history[key].push(d); });
+  scheduleSave();
+  showToast('今日の夕食に追加しました 📋');
+}
+
+// ─────────────────────────────────────────────
+//  HISTORY
+// ─────────────────────────────────────────────
+function renderHistory() {
+  const c    = document.getElementById('histContainer');
+  const keys = Object.keys(appData.history).sort((a, b) => b.localeCompare(a));
+  if (!keys.length) {
+    c.innerHTML = '<div class="history-empty"><div class="ei">📋</div>記録がまだありません</div>';
+    return;
+  }
+  const dows = ['日','月','火','水','木','金','土'];
+  c.innerHTML = keys.map(k => {
+    const dishes = appData.history[k] || [];
+    if (!dishes.length) return '';
+    const d   = new Date(k + 'T00:00:00');
+    const lbl = `${d.getMonth()+1}月${d.getDate()}日（${dows[d.getDay()]}）`;
+    return `<div class="history-day">
+      <div class="history-date">🌙 ${lbl}</div>
+      <div class="history-dishes">${dishes.map(x => `<div class="history-dish">${esc(x)}</div>`).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+//  SETTINGS
+// ─────────────────────────────────────────────
+function copyGistId() {
+  navigator.clipboard.writeText(getCfg().gistId || '').then(() => showToast('コピーしました ✅'));
+}
+async function manualReload() {
+  await pullLoad();
+  renderRecord();
+  showToast('再読み込みしました ✅');
+}
+function resetSettings() {
+  if (!confirm('このデバイスの設定をリセットしますか？\nGistのデータは残ります。')) return;
+  localStorage.removeItem(CFG_KEY);
+  location.reload();
+}
+
+// ─────────────────────────────────────────────
+//  UTIL
+// ─────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2300);
+}
+
+// ─────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────
+(function () {
+  const cfg = getCfg();
+  if (cfg.token && cfg.gistId) {
+    document.getElementById('setup-screen').style.display = 'none';
+    startApp();
+  }
+})();
+</script>
+</body>
+</html>
