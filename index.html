@@ -309,7 +309,7 @@
         </div>
         <div class="dish-list" id="dishList"></div>
         <div class="add-row">
-          <input type="text" id="dishInput" placeholder="料理名を入力…" onkeydown="if(event.key==='Enter')doAdd()">
+          <input type="text" id="dishInput" placeholder="料理名を入力…">
           <button onclick="doAdd()">追加</button>
         </div>
       </div>
@@ -767,6 +767,19 @@ function showToast(msg) {
 }
 
 // ─────────────────────────────────────────────
+//  IME COMPOSITION FIX
+// ─────────────────────────────────────────────
+(function() {
+  let composing = false;
+  const inp = document.getElementById('dishInput');
+  inp.addEventListener('compositionstart', () => { composing = true; });
+  inp.addEventListener('compositionend',   () => { composing = false; });
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !composing) doAdd();
+  });
+})();
+
+// ─────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────
 (function () {
@@ -779,4 +792,3 @@ function showToast(msg) {
 </script>
 </body>
 </html>
-　
